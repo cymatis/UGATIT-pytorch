@@ -74,6 +74,7 @@ class ResnetGenerator(nn.Module):
 
         self.DownBlock = nn.Sequential(*DownBlock)
         self.FC = nn.Sequential(*FC)
+        # self.FC = nn.Dataparallel
         self.UpBlock2 = nn.Sequential(*UpBlock2)
 
     def forward(self, input):
