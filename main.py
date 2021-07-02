@@ -22,7 +22,8 @@ def parse_args():
     parser.add_argument('--adv_weight', type=int, default=1, help='Weight for GAN')
     parser.add_argument('--cycle_weight', type=int, default=10, help='Weight for Cycle')
     parser.add_argument('--identity_weight', type=int, default=10, help='Weight for Identity')
-    parser.add_argument('--cam_weight', type=int, default=1000, help='Weight for CAM')
+    parser.add_argument('--content_weight', type=int, default=10, help='Weight for Content')
+    # parser.add_argument('--cam_weight', type=int, default=1000, help='Weight for CAM')
 
     parser.add_argument('--ch', type=int, default=64, help='base channel number per layer')
     parser.add_argument('--n_res', type=int, default=4, help='The number of resblock')

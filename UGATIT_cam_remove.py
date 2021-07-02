@@ -33,8 +33,7 @@ class UGATIT(object) :
         self.adv_weight = args.adv_weight
         self.cycle_weight = args.cycle_weight
         self.identity_weight = args.identity_weight
-        self.content_weight = args.content_weight
-        # self.cam_weight = args.cam_weight
+        self.cam_weight = args.cam_weight
 
         """ Generator """
         self.n_res = args.n_res
@@ -77,8 +76,7 @@ class UGATIT(object) :
         print("# adv_weight : ", self.adv_weight)
         print("# cycle_weight : ", self.cycle_weight)
         print("# identity_weight : ", self.identity_weight)
-        print("# content_weight : ", self.content_weight)
-        # print("# cam_weight : ", self.cam_weight)
+        print("# cam_weight : ", self.cam_weight)
 
     ##################################################################################
     # Model
@@ -178,40 +176,29 @@ class UGATIT(object) :
             
             fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
 
-            real_GA_logit, _ = self.disGA(real_A) # 0
-            real_LA_logit, _ = self.disLA(real_A) # 0
-            real_GB_logit, _ = self.disGB(real_B) # 1
-            real_LB_logit, _ = self.disLB(real_B) # 1
+            real_GA_logit, real_GA_cam_logit, _ = self.disGA(real_A) # 0
+            real_LA_logit, real_LA_cam_logit, _ = self.disLA(real_A) # 0
+            real_GB_logit, real_GB_cam_logit, _ = self.disGB(real_B) # 1
+            real_LB_logit, real_LB_cam_logit, _ = self.disLB(real_B) # 1
 
-            fake_GA_logit, _ = self.disGA(fake_B2A_cuda) # 0
-            fake_LA_logit, _ = self.disLA(fake_B2A_cuda) # 0
-            fake_GB_logit, _ = self.disGB(fake_A2B_cuda) # 1
-            fake_LB_logit, _ = self.disLB(fake_A2B_cuda) # 1
-
-            # real_GA_logit, real_GA_cam_logit, _ = self.disGA(real_A) # 0
-            # real_LA_logit, real_LA_cam_logit, _ = self.disLA(real_A) # 0
-            # real_GB_logit, real_GB_cam_logit, _ = self.disGB(real_B) # 1
-            # real_LB_logit, real_LB_cam_logit, _ = self.disLB(real_B) # 1
-
-            # fake_GA_logit, fake_GA_cam_logit, _ = self.disGA(fake_B2A_cuda) # 0
-            # fake_LA_logit, fake_LA_cam_logit, _ = self.disLA(fake_B2A_cuda) # 0
-            # fake_GB_logit, fake_GB_cam_logit, _ = self.disGB(fake_A2B_cuda) # 1
-            # fake_LB_logit, fake_LB_cam_logit, _ = self.disLB(fake_A2B_cuda) # 1
+            fake_GA_logit, fake_GA_cam_logit, _ = self.disGA(fake_B2A_cuda) # 0
+            fake_LA_logit, fake_LA_cam_logit, _ = self.disLA(fake_B2A_cuda) # 0
+            fake_GB_logit, fake_GB_cam_logit, _ = self.disGB(fake_A2B_cuda) # 1
+            fake_LB_logit, fake_LB_cam_logit, _ = self.disLB(fake_A2B_cuda) # 1
 
             D_ad_loss_GA = self.MSE_loss_c0(real_GA_logit, torch.ones_like(real_GA_logit).to(torch.device("cuda:0"))) + self.MSE_loss_c0(fake_GA_logit, torch.zeros_like(fake_GA_logit).to(torch.device("cuda:0")))
-            # D_ad_cam_loss_GA = self.MSE_loss_c0(real_GA_cam_logit, torch.ones_like(real_GA_cam_logit).to(torch.device("cuda:0"))) + self.MSE_loss_c0(fake_GA_cam_logit, torch.zeros_like(fake_GA_cam_logit).to(torch.device("cuda:0")))
+            D_ad_cam_loss_GA = self.MSE_loss_c0(real_GA_cam_logit, torch.ones_like(real_GA_cam_logit).to(torch.device("cuda:0"))) + self.MSE_loss_c0(fake_GA_cam_logit, torch.zeros_like(fake_GA_cam_logit).to(torch.device("cuda:0")))
             D_ad_loss_LA = self.MSE_loss_c0(real_LA_logit, torch.ones_like(real_LA_logit).to(torch.device("cuda:0"))) + self.MSE_loss_c0(fake_LA_logit, torch.zeros_like(fake_LA_logit).to(torch.device("cuda:0")))
-            # D_ad_cam_loss_LA = self.MSE_loss_c0(real_LA_cam_logit, torch.ones_like(real_LA_cam_logit).to(torch.device("cuda:0"))) + self.MSE_loss_c0(fake_LA_cam_logit, torch.zeros_like(fake_LA_cam_logit).to(torch.device("cuda:0")))
+            D_ad_cam_loss_LA = self.MSE_loss_c0(real_LA_cam_logit, torch.ones_like(real_LA_cam_logit).to(torch.device("cuda:0"))) + self.MSE_loss_c0(fake_LA_cam_logit, torch.zeros_like(fake_LA_cam_logit).to(torch.device("cuda:0")))
             D_ad_loss_GB = self.MSE_loss_c1(real_GB_logit, torch.ones_like(real_GB_logit).to(torch.device("cuda:1"))) + self.MSE_loss_c1(fake_GB_logit, torch.zeros_like(fake_GB_logit).to(torch.device("cuda:1")))
-            # D_ad_cam_loss_GB = self.MSE_loss_c1(real_GB_cam_logit, torch.ones_like(real_GB_cam_logit).to(torch.device("cuda:1"))) + self.MSE_loss_c1(fake_GB_cam_logit, torch.zeros_like(fake_GB_cam_logit).to(torch.device("cuda:1")))
+            D_ad_cam_loss_GB = self.MSE_loss_c1(real_GB_cam_logit, torch.ones_like(real_GB_cam_logit).to(torch.device("cuda:1"))) + self.MSE_loss_c1(fake_GB_cam_logit, torch.zeros_like(fake_GB_cam_logit).to(torch.device("cuda:1")))
             D_ad_loss_LB = self.MSE_loss_c1(real_LB_logit, torch.ones_like(real_LB_logit).to(torch.device("cuda:1"))) + self.MSE_loss_c1(fake_LB_logit, torch.zeros_like(fake_LB_logit).to(torch.device("cuda:1")))
-            # D_ad_cam_loss_LB = self.MSE_loss_c1(real_LB_cam_logit, torch.ones_like(real_LB_cam_logit).to(torch.device("cuda:1"))) + self.MSE_loss_c1(fake_LB_cam_logit, torch.zeros_like(fake_LB_cam_logit).to(torch.device("cuda:1")))
-        
-            # D_loss_A = self.adv_weight * (D_ad_loss_GA + D_ad_cam_loss_GA + D_ad_loss_LA + D_ad_cam_loss_LA) # 0
-            # D_loss_B = self.adv_weight * (D_ad_loss_GB + D_ad_cam_loss_GB + D_ad_loss_LB + D_ad_cam_loss_LB) # 1
+            D_ad_cam_loss_LB = self.MSE_loss_c1(real_LB_cam_logit, torch.ones_like(real_LB_cam_logit).to(torch.device("cuda:1"))) + self.MSE_loss_c1(fake_LB_cam_logit, torch.zeros_like(fake_LB_cam_logit).to(torch.device("cuda:1")))
+            
+            
 
-            D_loss_A = self.adv_weight * (D_ad_loss_GA + D_ad_loss_LA) # 0
-            D_loss_B = self.adv_weight * (D_ad_loss_GB + D_ad_loss_LB) # 1
+            D_loss_A = self.adv_weight * (D_ad_loss_GA + D_ad_cam_loss_GA + D_ad_loss_LA + D_ad_cam_loss_LA) # 0
+            D_loss_B = self.adv_weight * (D_ad_loss_GB + D_ad_cam_loss_GB + D_ad_loss_LB + D_ad_cam_loss_LB) # 1
             
 
 
@@ -223,37 +210,35 @@ class UGATIT(object) :
             # Update G
             self.G_optim.zero_grad()
 
-            fake_A2B, _, fake_A2B_content = self.genA2B(real_A) # 0
-            fake_B2A, _, fake_B2A_content = self.genB2A(real_B) # 1
+            fake_A2B, fake_A2B_cam_logit, _ = self.genA2B(real_A) # 0
+            fake_B2A, fake_B2A_cam_logit, _ = self.genB2A(real_B) # 1
             
             fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
-            # fake_A2B_cam_logit_cuda, fake_B2A_cam_logit_cuda = fake_A2B_cam_logit.to(torch.device("cuda:1")), fake_B2A_cam_logit.to(torch.device("cuda:0"))
+            fake_A2B_cam_logit_cuda, fake_B2A_cam_logit_cuda = fake_A2B_cam_logit.to(torch.device("cuda:1")), fake_B2A_cam_logit.to(torch.device("cuda:0"))
 
-            fake_A2B2A, _, fake_A2B2A_content = self.genB2A(fake_A2B_cuda) # 1
-            fake_B2A2B, _, fake_B2A2B_content = self.genA2B(fake_B2A_cuda) # 0
+            fake_A2B2A, _, _ = self.genB2A(fake_A2B_cuda) # 1
+            fake_B2A2B, _, _ = self.genA2B(fake_B2A_cuda) # 0
 
-            fake_A2B2A_content_cuda, fake_B2A2B_content_cuda = fake_A2B2A_content.to(torch.device("cuda:0")), fake_B2A2B_content.to(torch.device("cuda:1"))
-
-            fake_A2A, _, fake_A2A_content = self.genB2A(real_A_cuda) # 1
-            fake_B2B, _, fake_B2B_content = self.genA2B(real_B_cuda) # 0
+            fake_A2A, fake_A2A_cam_logit, _ = self.genB2A(real_A_cuda) # 1
+            fake_B2B, fake_B2B_cam_logit, _ = self.genA2B(real_B_cuda) # 0
             
-            # fake_A2A_cam_logit_cuda, fake_B2B_cam_logit_cuda = fake_A2A_cam_logit.to(torch.device("cuda:0")), fake_B2B_cam_logit.to(torch.device("cuda:1"))
+            fake_A2A_cam_logit_cuda, fake_B2B_cam_logit_cuda = fake_A2A_cam_logit.to(torch.device("cuda:0")), fake_B2B_cam_logit.to(torch.device("cuda:1"))
             fake_A2A_cuda, fake_B2B_cuda = fake_A2A.to(torch.device("cuda:0")), fake_B2B.to(torch.device("cuda:1"))
             fake_A2B2A_cuda, fake_B2A2B_cuda = fake_A2B2A.to(torch.device("cuda:0")), fake_B2A2B.to(torch.device("cuda:1"))
 
-            fake_GA_logit, _ = self.disGA(fake_B2A_cuda) # 0
-            fake_LA_logit, _ = self.disLA(fake_B2A_cuda) # 0
-            fake_GB_logit, _ = self.disGB(fake_A2B_cuda) # 1
-            fake_LB_logit, _ = self.disLB(fake_A2B_cuda) # 1
+            fake_GA_logit, fake_GA_cam_logit, _ = self.disGA(fake_B2A_cuda) # 0
+            fake_LA_logit, fake_LA_cam_logit, _ = self.disLA(fake_B2A_cuda) # 0
+            fake_GB_logit, fake_GB_cam_logit, _ = self.disGB(fake_A2B_cuda) # 1
+            fake_LB_logit, fake_LB_cam_logit, _ = self.disLB(fake_A2B_cuda) # 1
 
             G_ad_loss_GA = self.MSE_loss_c0(fake_GA_logit, torch.ones_like(fake_GA_logit).to(torch.device("cuda:0")))
-            # G_ad_cam_loss_GA = self.MSE_loss_c0(fake_GA_cam_logit, torch.ones_like(fake_GA_cam_logit).to(torch.device("cuda:0")))
+            G_ad_cam_loss_GA = self.MSE_loss_c0(fake_GA_cam_logit, torch.ones_like(fake_GA_cam_logit).to(torch.device("cuda:0")))
             G_ad_loss_LA = self.MSE_loss_c0(fake_LA_logit, torch.ones_like(fake_LA_logit).to(torch.device("cuda:0")))
-            # G_ad_cam_loss_LA = self.MSE_loss_c0(fake_LA_cam_logit, torch.ones_like(fake_LA_cam_logit).to(torch.device("cuda:0")))
+            G_ad_cam_loss_LA = self.MSE_loss_c0(fake_LA_cam_logit, torch.ones_like(fake_LA_cam_logit).to(torch.device("cuda:0")))
             G_ad_loss_GB = self.MSE_loss_c1(fake_GB_logit, torch.ones_like(fake_GB_logit).to(torch.device("cuda:1")))
-            # G_ad_cam_loss_GB = self.MSE_loss_c1(fake_GB_cam_logit, torch.ones_like(fake_GB_cam_logit).to(torch.device("cuda:1")))
+            G_ad_cam_loss_GB = self.MSE_loss_c1(fake_GB_cam_logit, torch.ones_like(fake_GB_cam_logit).to(torch.device("cuda:1")))
             G_ad_loss_LB = self.MSE_loss_c1(fake_LB_logit, torch.ones_like(fake_LB_logit).to(torch.device("cuda:1")))
-            # G_ad_cam_loss_LB = self.MSE_loss_c1(fake_LB_cam_logit, torch.ones_like(fake_LB_cam_logit).to(torch.device("cuda:1")))
+            G_ad_cam_loss_LB = self.MSE_loss_c1(fake_LB_cam_logit, torch.ones_like(fake_LB_cam_logit).to(torch.device("cuda:1")))
 
             G_recon_loss_A = self.L1_loss_c0(fake_A2B2A_cuda, real_A)
             G_recon_loss_B = self.L1_loss_c1(fake_B2A2B_cuda, real_B)
@@ -261,14 +246,11 @@ class UGATIT(object) :
             G_identity_loss_A = self.L1_loss_c1(fake_A2A_cuda, real_A)
             G_identity_loss_B = self.L1_loss_c0(fake_B2B_cuda, real_B)
 
-            G_content_loss_A = self.L1_loss_c0(fake_A2B_content, fake_A2B2A_content_cuda)
-            G_content_loss_B = self.L1_loss_c1(fake_B2A_content, fake_B2A2B_content_cuda)
+            G_cam_loss_A = self.BCE_loss_c0(fake_B2A_cam_logit_cuda, torch.ones_like(fake_B2A_cam_logit_cuda).to(torch.device("cuda:0"))) + self.BCE_loss_c0(fake_A2A_cam_logit_cuda, torch.zeros_like(fake_A2A_cam_logit_cuda).to(torch.device("cuda:0")))
+            G_cam_loss_B = self.BCE_loss_c1(fake_A2B_cam_logit_cuda, torch.ones_like(fake_A2B_cam_logit_cuda).to(torch.device("cuda:1"))) + self.BCE_loss_c1(fake_B2B_cam_logit_cuda, torch.zeros_like(fake_B2B_cam_logit_cuda).to(torch.device("cuda:1")))
 
-            # G_cam_loss_A = self.BCE_loss_c0(fake_B2A_cam_logit_cuda, torch.ones_like(fake_B2A_cam_logit_cuda).to(torch.device("cuda:0"))) + self.BCE_loss_c0(fake_A2A_cam_logit_cuda, torch.zeros_like(fake_A2A_cam_logit_cuda).to(torch.device("cuda:0")))
-            # G_cam_loss_B = self.BCE_loss_c1(fake_A2B_cam_logit_cuda, torch.ones_like(fake_A2B_cam_logit_cuda).to(torch.device("cuda:1"))) + self.BCE_loss_c1(fake_B2B_cam_logit_cuda, torch.zeros_like(fake_B2B_cam_logit_cuda).to(torch.device("cuda:1")))
-
-            G_loss_A =  self.adv_weight * (G_ad_loss_GA + G_ad_loss_LA) + self.cycle_weight * G_recon_loss_A + self.identity_weight * G_identity_loss_A + self.content_weight * G_content_loss_A
-            G_loss_B = self.adv_weight * (G_ad_loss_GB + G_ad_loss_LB) + self.cycle_weight * G_recon_loss_B + self.identity_weight * G_identity_loss_B + self.content_weight * G_content_loss_B
+            G_loss_A =  self.adv_weight * (G_ad_loss_GA + G_ad_cam_loss_GA + G_ad_loss_LA + G_ad_cam_loss_LA) + self.cycle_weight * G_recon_loss_A + self.identity_weight * G_identity_loss_A + self.cam_weight * G_cam_loss_A
+            G_loss_B = self.adv_weight * (G_ad_loss_GB + G_ad_cam_loss_GB + G_ad_loss_LB + G_ad_cam_loss_LB) + self.cycle_weight * G_recon_loss_B + self.identity_weight * G_identity_loss_B + self.cam_weight * G_cam_loss_B
             
 ############
 
@@ -303,17 +285,17 @@ class UGATIT(object) :
                     real_A, real_B = real_A_raw.to(torch.device("cuda:0")), real_B_raw.to(torch.device("cuda:1"))
                     real_A_cuda, real_B_cuda = real_A_raw.to(torch.device("cuda:1")), real_B_raw.to(torch.device("cuda:0"))
 
-                    fake_A2B, fake_A2B_heatmap, _ = self.genA2B(real_A) # 0
-                    fake_B2A, fake_B2A_heatmap, _ = self.genB2A(real_B) # 1
+                    fake_A2B, _, fake_A2B_heatmap = self.genA2B(real_A) # 0
+                    fake_B2A, _, fake_B2A_heatmap = self.genB2A(real_B) # 1
                     
                     fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
                     fake_A2B_heatmap_cuda, fake_B2A_heatmap_cuda = fake_A2B_heatmap.to(torch.device("cuda:1")), fake_B2A_heatmap.to(torch.device("cuda:0"))
 
-                    fake_A2B2A, fake_A2B2A_heatmap, _ = self.genB2A(fake_A2B_cuda) # 1
-                    fake_B2A2B, fake_B2A2B_heatmap, _ = self.genA2B(fake_B2A_cuda) # 0
+                    fake_A2B2A, _, fake_A2B2A_heatmap = self.genB2A(fake_A2B_cuda) # 1
+                    fake_B2A2B, _, fake_B2A2B_heatmap = self.genA2B(fake_B2A_cuda) # 0
 
-                    fake_A2A, fake_A2A_heatmap, _ = self.genB2A(real_A_cuda) # 1
-                    fake_B2B, fake_B2B_heatmap, _ = self.genA2B(real_B_cuda) # 0
+                    fake_A2A, _, fake_A2A_heatmap = self.genB2A(real_A_cuda) # 1
+                    fake_B2B, _, fake_B2B_heatmap = self.genA2B(real_B_cuda) # 0
 
                     A2B = np.concatenate((A2B, np.concatenate((RGB2BGR(tensor2numpy(denorm(real_A[0]))),
                                                                cam(tensor2numpy(fake_A2A_heatmap[0]), self.img_size),
@@ -346,17 +328,17 @@ class UGATIT(object) :
                     real_A, real_B = real_A_raw.to(torch.device("cuda:0")), real_B_raw.to(torch.device("cuda:1"))
                     real_A_cuda, real_B_cuda = real_A_raw.to(torch.device("cuda:1")), real_B_raw.to(torch.device("cuda:0"))
 
-                    fake_A2B, fake_A2B_heatmap, _ = self.genA2B(real_A) # 0
-                    fake_B2A, fake_B2A_heatmap, _ = self.genB2A(real_B) # 1
+                    fake_A2B, _, fake_A2B_heatmap = self.genA2B(real_A) # 0
+                    fake_B2A, _, fake_B2A_heatmap = self.genB2A(real_B) # 1
 
                     fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
                     fake_A2B_heatmap_cuda, fake_B2A_heatmap_cuda = fake_A2B_heatmap.to(torch.device("cuda:1")), fake_B2A_heatmap.to(torch.device("cuda:0"))
 
-                    fake_A2B2A, fake_A2B2A_heatmap, _ = self.genB2A(fake_A2B_cuda) # 1
-                    fake_B2A2B, fake_B2A2B_heatmap, _ = self.genA2B(fake_B2A_cuda) # 0
+                    fake_A2B2A, _, fake_A2B2A_heatmap = self.genB2A(fake_A2B_cuda) # 1
+                    fake_B2A2B, _, fake_B2A2B_heatmap = self.genA2B(fake_B2A_cuda) # 0
 
-                    fake_A2A, fake_A2A_heatmap, _ = self.genB2A(real_A_cuda) # 1
-                    fake_B2B, fake_B2B_heatmap, _ = self.genA2B(real_B_cuda) # 0
+                    fake_A2A, _, fake_A2A_heatmap = self.genB2A(real_A_cuda) # 1
+                    fake_B2B, _, fake_B2B_heatmap = self.genA2B(real_B_cuda) # 0
 
                     A2B = np.concatenate((A2B, np.concatenate((RGB2BGR(tensor2numpy(denorm(real_A[0]))),
                                                                cam(tensor2numpy(fake_A2A_heatmap[0]), self.img_size),
@@ -430,9 +412,9 @@ class UGATIT(object) :
             
             fake_A2B_cuda = fake_A2B.to(torch.device("cuda:1"))
 
-            fake_A2B2A, fake_A2B2A_heatmap, _ = self.genB2A(fake_A2B_cuda) # 1
+            fake_A2B2A, _, fake_A2B2A_heatmap = self.genB2A(fake_A2B_cuda) # 1
 
-            fake_A2A, fake_A2A_heatmap, _ = self.genB2A(real_A_cuda) # 1
+            fake_A2A, _, fake_A2A_heatmap = self.genB2A(real_A_cuda) # 1
 
             A2B = np.concatenate((RGB2BGR(tensor2numpy(denorm(real_A[0]))),
                                   cam(tensor2numpy(fake_A2A_heatmap[0]), self.img_size),
@@ -448,13 +430,13 @@ class UGATIT(object) :
             real_B = real_B_raw.to(torch.device("cuda:1"))
             real_B_cuda = real_B_raw.to(torch.device("cuda:0"))
 
-            fake_B2A, fake_B2A_heatmap, _ = self.genB2A(real_B) # 1
+            fake_B2A, _, fake_B2A_heatmap = self.genB2A(real_B) # 1
             
             fake_B2A_cuda = fake_B2A.to(torch.device("cuda:0"))
 
-            fake_B2A2B, fake_B2A2B_heatmap, _ = self.genA2B(fake_B2A_cuda) # 0
+            fake_B2A2B, _, fake_B2A2B_heatmap = self.genA2B(fake_B2A_cuda) # 0
 
-            fake_B2B, fake_B2B_heatmap, _ = self.genA2B(real_B_cuda) # 0
+            fake_B2B, _, fake_B2B_heatmap = self.genA2B(real_B_cuda) # 0
 
             B2A = np.concatenate((RGB2BGR(tensor2numpy(denorm(real_B[0]))),
                                   cam(tensor2numpy(fake_B2B_heatmap[0]), self.img_size),
