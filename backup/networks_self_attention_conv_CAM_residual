@@ -49,6 +49,7 @@ class ResnetGenerator(nn.Module):
         self.self_att = Self_Attn(ngf * mult, 'relu')
         self.conv1x1 = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(True)
+        self.mish = nn.Mish()
 
         # Conv CAM
         # self.g_conv_down = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=2, padding=1, groups=ngf * mult, bias=False)
@@ -111,12 +112,14 @@ class ResnetGenerator(nn.Module):
         # x = self.relu(self.conv1x1(x))
 
         self_att_map = self.self_att(x)
-        #g_conv_down = self.g_conv_down(self_att_map)
+        # g_conv_down = self.g_conv_down(self_att_map)
         g_conv = self.g_conv(self_att_map)
         c_cam_logit = self.conv1x1_logit(g_conv)
 
         # x = self.g_conv_cpy(x)
         x = self.relu(self.conv1x1(g_conv))
+        # x = self.mish(self.conv1x1(g_conv))
+        x += content_feature
 
         heatmap = torch.sum(g_conv, dim=1, keepdim=True)
 
