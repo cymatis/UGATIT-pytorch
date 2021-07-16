@@ -34,6 +34,7 @@ class UGATIT(object) :
         self.cycle_weight = args.cycle_weight
         self.identity_weight = args.identity_weight
         self.cam_weight = args.cam_weight
+        self.content_weight = args.content_weight
 
         """ Generator """
         self.n_res = args.n_res
@@ -77,6 +78,7 @@ class UGATIT(object) :
         print("# cycle_weight : ", self.cycle_weight)
         print("# identity_weight : ", self.identity_weight)
         print("# cam_weight : ", self.cam_weight)
+        print("# content_weight : ", self.content_weight)
 
     ##################################################################################
     # Model
@@ -116,10 +118,12 @@ class UGATIT(object) :
 
         """ Define Loss """
         self.L1_loss_c0 = nn.L1Loss().to(torch.device("cuda:0"))
+        self.SM_L1_loss_c0 = nn.SmoothL1Loss().to(torch.device("cuda:0"))
         self.MSE_loss_c0 = nn.MSELoss().to(torch.device("cuda:0"))
         self.BCE_loss_c0 = nn.BCEWithLogitsLoss().to(torch.device("cuda:0"))
         
         self.L1_loss_c1 = nn.L1Loss().to(torch.device("cuda:1"))
+        self.SM_L1_loss_c1 = nn.SmoothL1Loss().to(torch.device("cuda:1"))
         self.MSE_loss_c1 = nn.MSELoss().to(torch.device("cuda:1"))
         self.BCE_loss_c1 = nn.BCEWithLogitsLoss().to(torch.device("cuda:1"))
 
@@ -171,8 +175,8 @@ class UGATIT(object) :
             # Update D
             self.D_optim.zero_grad()
 
-            fake_A2B, _, _ = self.genA2B(real_A) # 0
-            fake_B2A, _, _ = self.genB2A(real_B) # 1
+            fake_A2B, _, _, _ = self.genA2B(real_A) # 0
+            fake_B2A, _, _, _ = self.genB2A(real_B) # 1
             
             fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
 
@@ -210,14 +214,16 @@ class UGATIT(object) :
             # Update G
             self.G_optim.zero_grad()
 
-            fake_A2B, fake_A2B_cam_logit, _ = self.genA2B(real_A) # 0
-            fake_B2A, fake_B2A_cam_logit, _ = self.genB2A(real_B) # 1
+            fake_A2B, fake_A2B_cam_logit, _, fake_A2B_feature = self.genA2B(real_A) # 0
+            fake_B2A, fake_B2A_cam_logit, _, fake_B2A_feature = self.genB2A(real_B) # 1
             
             fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
             fake_A2B_cam_logit_cuda, fake_B2A_cam_logit_cuda = fake_A2B_cam_logit.to(torch.device("cuda:1")), fake_B2A_cam_logit.to(torch.device("cuda:0"))
 
-            fake_A2B2A, _, _ = self.genB2A(fake_A2B_cuda) # 1
-            fake_B2A2B, _, _ = self.genA2B(fake_B2A_cuda) # 0
+            fake_A2B2A, _, _, fake_A2B2A_feature = self.genB2A(fake_A2B_cuda) # 1
+            fake_B2A2B, _, _, fake_B2A2B_feature = self.genA2B(fake_B2A_cuda) # 0
+            
+            fake_A2B2A_feature_cuda, fake_B2A2B_feature_cuda = fake_A2B2A_feature.to(torch.device("cuda:0")), fake_B2A2B_feature.to(torch.device("cuda:1"))
 
             fake_A2A, fake_A2A_cam_logit, _ = self.genB2A(real_A_cuda) # 1
             fake_B2B, fake_B2B_cam_logit, _ = self.genA2B(real_B_cuda) # 0
@@ -249,8 +255,11 @@ class UGATIT(object) :
             G_cam_loss_A = self.BCE_loss_c0(fake_B2A_cam_logit_cuda, torch.ones_like(fake_B2A_cam_logit_cuda).to(torch.device("cuda:0"))) + self.BCE_loss_c0(fake_A2A_cam_logit_cuda, torch.zeros_like(fake_A2A_cam_logit_cuda).to(torch.device("cuda:0")))
             G_cam_loss_B = self.BCE_loss_c1(fake_A2B_cam_logit_cuda, torch.ones_like(fake_A2B_cam_logit_cuda).to(torch.device("cuda:1"))) + self.BCE_loss_c1(fake_B2B_cam_logit_cuda, torch.zeros_like(fake_B2B_cam_logit_cuda).to(torch.device("cuda:1")))
 
-            G_loss_A =  self.adv_weight * (G_ad_loss_GA + G_ad_cam_loss_GA + G_ad_loss_LA + G_ad_cam_loss_LA) + self.cycle_weight * G_recon_loss_A + self.identity_weight * G_identity_loss_A + self.cam_weight * G_cam_loss_A
-            G_loss_B = self.adv_weight * (G_ad_loss_GB + G_ad_cam_loss_GB + G_ad_loss_LB + G_ad_cam_loss_LB) + self.cycle_weight * G_recon_loss_B + self.identity_weight * G_identity_loss_B + self.cam_weight * G_cam_loss_B
+            G_content_loss_A = self.SM_L1_loss_c1(fake_A2B_feature, fake_A2B2A_feature_cuda)
+            G_content_loss_B = self.SM_L1_loss_c1(fake_B2A_feature, fake_B2A2B_feature_cuda)
+
+            G_loss_A =  self.adv_weight * (G_ad_loss_GA + G_ad_cam_loss_GA + G_ad_loss_LA + G_ad_cam_loss_LA) + self.cycle_weight * G_recon_loss_A + self.identity_weight * G_identity_loss_A + self.cam_weight * G_cam_loss_A + self.content_weight * G_content_loss_A
+            G_loss_B = self.adv_weight * (G_ad_loss_GB + G_ad_cam_loss_GB + G_ad_loss_LB + G_ad_cam_loss_LB) + self.cycle_weight * G_recon_loss_B + self.identity_weight * G_identity_loss_B + self.cam_weight * G_cam_loss_B + self.content_weight * G_content_loss_B
             
 ############
 
@@ -285,17 +294,17 @@ class UGATIT(object) :
                     real_A, real_B = real_A_raw.to(torch.device("cuda:0")), real_B_raw.to(torch.device("cuda:1"))
                     real_A_cuda, real_B_cuda = real_A_raw.to(torch.device("cuda:1")), real_B_raw.to(torch.device("cuda:0"))
 
-                    fake_A2B, _, fake_A2B_heatmap = self.genA2B(real_A) # 0
-                    fake_B2A, _, fake_B2A_heatmap = self.genB2A(real_B) # 1
+                    fake_A2B, _, fake_A2B_heatmap, _ = self.genA2B(real_A) # 0
+                    fake_B2A, _, fake_B2A_heatmap, _ = self.genB2A(real_B) # 1
                     
                     fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
                     fake_A2B_heatmap_cuda, fake_B2A_heatmap_cuda = fake_A2B_heatmap.to(torch.device("cuda:1")), fake_B2A_heatmap.to(torch.device("cuda:0"))
 
-                    fake_A2B2A, _, fake_A2B2A_heatmap = self.genB2A(fake_A2B_cuda) # 1
-                    fake_B2A2B, _, fake_B2A2B_heatmap = self.genA2B(fake_B2A_cuda) # 0
+                    fake_A2B2A, _, fake_A2B2A_heatmap, _ = self.genB2A(fake_A2B_cuda) # 1
+                    fake_B2A2B, _, fake_B2A2B_heatmap, _ = self.genA2B(fake_B2A_cuda) # 0
 
-                    fake_A2A, _, fake_A2A_heatmap = self.genB2A(real_A_cuda) # 1
-                    fake_B2B, _, fake_B2B_heatmap = self.genA2B(real_B_cuda) # 0
+                    fake_A2A, _, fake_A2A_heatmap, _ = self.genB2A(real_A_cuda) # 1
+                    fake_B2B, _, fake_B2B_heatmap, _ = self.genA2B(real_B_cuda) # 0
 
                     A2B = np.concatenate((A2B, np.concatenate((RGB2BGR(tensor2numpy(denorm(real_A[0]))),
                                                                cam(tensor2numpy(fake_A2A_heatmap[0]), self.img_size),
@@ -328,17 +337,17 @@ class UGATIT(object) :
                     real_A, real_B = real_A_raw.to(torch.device("cuda:0")), real_B_raw.to(torch.device("cuda:1"))
                     real_A_cuda, real_B_cuda = real_A_raw.to(torch.device("cuda:1")), real_B_raw.to(torch.device("cuda:0"))
 
-                    fake_A2B, _, fake_A2B_heatmap = self.genA2B(real_A) # 0
-                    fake_B2A, _, fake_B2A_heatmap = self.genB2A(real_B) # 1
+                    fake_A2B, _, fake_A2B_heatmap, _ = self.genA2B(real_A) # 0
+                    fake_B2A, _, fake_B2A_heatmap, _ = self.genB2A(real_B) # 1
 
                     fake_A2B_cuda, fake_B2A_cuda = fake_A2B.to(torch.device("cuda:1")), fake_B2A.to(torch.device("cuda:0"))
                     fake_A2B_heatmap_cuda, fake_B2A_heatmap_cuda = fake_A2B_heatmap.to(torch.device("cuda:1")), fake_B2A_heatmap.to(torch.device("cuda:0"))
 
-                    fake_A2B2A, _, fake_A2B2A_heatmap = self.genB2A(fake_A2B_cuda) # 1
-                    fake_B2A2B, _, fake_B2A2B_heatmap = self.genA2B(fake_B2A_cuda) # 0
+                    fake_A2B2A, _, fake_A2B2A_heatmap, _ = self.genB2A(fake_A2B_cuda) # 1
+                    fake_B2A2B, _, fake_B2A2B_heatmap, _ = self.genA2B(fake_B2A_cuda) # 0
 
-                    fake_A2A, _, fake_A2A_heatmap = self.genB2A(real_A_cuda) # 1
-                    fake_B2B, _, fake_B2B_heatmap = self.genA2B(real_B_cuda) # 0
+                    fake_A2A, _, fake_A2A_heatmap, _ = self.genB2A(real_A_cuda) # 1
+                    fake_B2B, _, fake_B2B_heatmap, _ = self.genA2B(real_B_cuda) # 0
 
                     A2B = np.concatenate((A2B, np.concatenate((RGB2BGR(tensor2numpy(denorm(real_A[0]))),
                                                                cam(tensor2numpy(fake_A2A_heatmap[0]), self.img_size),
@@ -408,13 +417,13 @@ class UGATIT(object) :
             real_A = real_A_raw.to(torch.device("cuda:0")) # 0
             real_A_cuda = real_A_raw.to(torch.device("cuda:1")) # 1
 
-            fake_A2B, _, fake_A2B_heatmap = self.genA2B(real_A) # 0
+            fake_A2B, _, fake_A2B_heatmap, _ = self.genA2B(real_A) # 0
             
             fake_A2B_cuda = fake_A2B.to(torch.device("cuda:1"))
 
-            fake_A2B2A, _, fake_A2B2A_heatmap = self.genB2A(fake_A2B_cuda) # 1
+            fake_A2B2A, _, fake_A2B2A_heatmap, _ = self.genB2A(fake_A2B_cuda) # 1
 
-            fake_A2A, _, fake_A2A_heatmap = self.genB2A(real_A_cuda) # 1
+            fake_A2A, _, fake_A2A_heatmap, _ = self.genB2A(real_A_cuda) # 1
 
             A2B = np.concatenate((RGB2BGR(tensor2numpy(denorm(real_A[0]))),
                                   cam(tensor2numpy(fake_A2A_heatmap[0]), self.img_size),
@@ -430,13 +439,13 @@ class UGATIT(object) :
             real_B = real_B_raw.to(torch.device("cuda:1"))
             real_B_cuda = real_B_raw.to(torch.device("cuda:0"))
 
-            fake_B2A, _, fake_B2A_heatmap = self.genB2A(real_B) # 1
+            fake_B2A, _, fake_B2A_heatmap, _ = self.genB2A(real_B) # 1
             
             fake_B2A_cuda = fake_B2A.to(torch.device("cuda:0"))
 
-            fake_B2A2B, _, fake_B2A2B_heatmap = self.genA2B(fake_B2A_cuda) # 0
+            fake_B2A2B, _, fake_B2A2B_heatmap, _ = self.genA2B(fake_B2A_cuda) # 0
 
-            fake_B2B, _, fake_B2B_heatmap = self.genA2B(real_B_cuda) # 0
+            fake_B2B, _, fake_B2B_heatmap, _ = self.genA2B(real_B_cuda) # 0
 
             B2A = np.concatenate((RGB2BGR(tensor2numpy(denorm(real_B[0]))),
                                   cam(tensor2numpy(fake_B2B_heatmap[0]), self.img_size),

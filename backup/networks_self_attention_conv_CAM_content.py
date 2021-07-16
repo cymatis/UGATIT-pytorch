@@ -132,7 +132,7 @@ class ResnetGenerator(nn.Module):
             x = getattr(self, 'UpBlock1_' + str(i+1))(x, gamma, beta)
         out = self.UpBlock2(x)
 
-        return out, c_cam_logit, heatmap
+        return out, c_cam_logit, heatmap, content_feature
 
 
 class ResnetBlock(nn.Module):
