@@ -144,6 +144,7 @@ class UGATIT(object) :
                 model_list.sort()
                 start_iter = int(model_list[-1].split('_')[-1].split('.')[0])
                 self.load(os.path.join(self.result_dir, self.dataset, 'model'), start_iter)
+                print(" Load iteration :", start_iter)
                 print(" [*] Load SUCCESS")
                 if self.decay_flag and start_iter > (self.iteration // 2):
                     self.G_optim.param_groups[0]['lr'] -= (self.lr / (self.iteration // 2)) * (start_iter - self.iteration // 2)
@@ -225,8 +226,8 @@ class UGATIT(object) :
             
             fake_A2B2A_feature_cuda, fake_B2A2B_feature_cuda = fake_A2B2A_feature.to(torch.device("cuda:0")), fake_B2A2B_feature.to(torch.device("cuda:1"))
 
-            fake_A2A, fake_A2A_cam_logit, _ = self.genB2A(real_A_cuda) # 1
-            fake_B2B, fake_B2B_cam_logit, _ = self.genA2B(real_B_cuda) # 0
+            fake_A2A, fake_A2A_cam_logit, _, _ = self.genB2A(real_A_cuda) # 1
+            fake_B2B, fake_B2B_cam_logit, _, _ = self.genA2B(real_B_cuda) # 0
             
             fake_A2A_cam_logit_cuda, fake_B2B_cam_logit_cuda = fake_A2A_cam_logit.to(torch.device("cuda:0")), fake_B2B_cam_logit.to(torch.device("cuda:1"))
             fake_A2A_cuda, fake_B2B_cuda = fake_A2A.to(torch.device("cuda:0")), fake_B2B.to(torch.device("cuda:1"))
@@ -255,7 +256,7 @@ class UGATIT(object) :
             G_cam_loss_A = self.BCE_loss_c0(fake_B2A_cam_logit_cuda, torch.ones_like(fake_B2A_cam_logit_cuda).to(torch.device("cuda:0"))) + self.BCE_loss_c0(fake_A2A_cam_logit_cuda, torch.zeros_like(fake_A2A_cam_logit_cuda).to(torch.device("cuda:0")))
             G_cam_loss_B = self.BCE_loss_c1(fake_A2B_cam_logit_cuda, torch.ones_like(fake_A2B_cam_logit_cuda).to(torch.device("cuda:1"))) + self.BCE_loss_c1(fake_B2B_cam_logit_cuda, torch.zeros_like(fake_B2B_cam_logit_cuda).to(torch.device("cuda:1")))
 
-            G_content_loss_A = self.SM_L1_loss_c1(fake_A2B_feature, fake_A2B2A_feature_cuda)
+            G_content_loss_A = self.SM_L1_loss_c0(fake_A2B_feature, fake_A2B2A_feature_cuda)
             G_content_loss_B = self.SM_L1_loss_c1(fake_B2A_feature, fake_B2A2B_feature_cuda)
 
             G_loss_A =  self.adv_weight * (G_ad_loss_GA + G_ad_cam_loss_GA + G_ad_loss_LA + G_ad_cam_loss_LA) + self.cycle_weight * G_recon_loss_A + self.identity_weight * G_identity_loss_A + self.cam_weight * G_cam_loss_A + self.content_weight * G_content_loss_A
@@ -270,6 +271,7 @@ class UGATIT(object) :
             # clip parameter of AdaILN and ILN, applied after optimizer step
             self.genA2B.apply(self.Rho_clipper)
             self.genB2A.apply(self.Rho_clipper)
+            print(self.genA2B.conv_CAM_var.data, self.genB2A.conv_CAM_var.data)
 
             print("[%5d/%5d] time: %4.4f d_loss: %.8f, g_loss: %.8f" % (step, self.iteration, time.time() - start_time, Discriminator_loss, Generator_loss))
             if step % self.print_freq == 0:
@@ -405,8 +407,11 @@ class UGATIT(object) :
         model_list = glob(os.path.join(self.result_dir, self.dataset, 'model', '*.pt'))
         if not len(model_list) == 0:
             model_list.sort()
-            iter = int(model_list[-1].split('_')[-1].split('.')[0])
+            # iter = int(model_list[-1].split('_')[-1].split('.')[0])
+            iter = 900000
             self.load(os.path.join(self.result_dir, self.dataset, 'model'), iter)
+
+            print(" Load iteration :", iter)
             print(" [*] Load SUCCESS")
         else:
             print(" [*] Load FAILURE")
