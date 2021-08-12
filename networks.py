@@ -43,23 +43,31 @@ class ResnetGenerator(nn.Module):
 
         # Self Attention
         # self.self_att = Self_Attn(ngf * mult, 'relu')
+        # self.conv1x1 = nn.Conv2d(ngf * mult * 3, ngf * mult, kernel_size=1, stride=1, bias=True) # for multi-scale
+        # self.relu = nn.ReLU(True)
 
-        # Multi Self Attention
         self.self_att = Self_Attn(ngf * mult, 'relu')
-        self.conv1x1 = nn.Conv2d(ngf * mult * 3, ngf * mult, kernel_size=1, stride=1, bias=True)
+        self.conv1x1 = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(True)
+        # self.mish = nn.Mish()
 
+        # Conv CAM
+        # self.g_conv_down = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=2, padding=1, groups=ngf * mult, bias=False)
+        self.g_conv = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=1, padding=1, groups=ngf * mult, bias=False)
+        self.conv1x1_logit = nn.Conv2d(ngf * mult, 1, kernel_size=1, stride=1, bias=True)
+        self.conv_CAM_var = nn.Parameter(torch.tensor(0.5))
+        
         # Gamma, Beta block
         if self.light:
             FC = [nn.Linear(ngf * mult, ngf * mult, bias=False),
-                  nn.ReLU(True),
+                  nn.Mish(),
                   nn.Linear(ngf * mult, ngf * mult, bias=False),
-                  nn.ReLU(True)]
+                  nn.Mish()]
         else:
             FC = [nn.Linear(img_size // mult * img_size // mult * ngf * mult, ngf * mult, bias=False),
-                  nn.ReLU(True),
+                  nn.Mish(),
                   nn.Linear(ngf * mult, ngf * mult, bias=False),
-                  nn.ReLU(True)]
+                  nn.Mish()]
         self.gamma = nn.Linear(ngf * mult, ngf * mult, bias=False)
         self.beta = nn.Linear(ngf * mult, ngf * mult, bias=False)
 
@@ -104,10 +112,17 @@ class ResnetGenerator(nn.Module):
         # x = torch.cat([gap, gmp], 1)
         # x = self.relu(self.conv1x1(x))
 
-        x = self.self_att(x)
-        # x = self.relu(self.conv1x1(x))
+        self_att_map = self.self_att(x)
+        # g_conv_down = self.g_conv_down(self_att_map)
+        g_conv = self.relu(self.g_conv(self_att_map))
+        c_cam_logit = self.conv1x1_logit(g_conv)
 
-        heatmap = torch.sum(x, dim=1, keepdim=True)
+        # x = self.g_conv_cpy(x)
+        # x = self.relu(self.conv1x1(g_conv))
+        x = self.relu(self.conv1x1(g_conv))
+        x = (x * (1.0 - self.conv_CAM_var)) + (self.conv_CAM_var * content_feature)
+
+        heatmap = torch.sum(g_conv, dim=1, keepdim=True)
 
         if self.light:
             x_ = torch.nn.functional.adaptive_avg_pool2d(x, 1)
@@ -121,7 +136,7 @@ class ResnetGenerator(nn.Module):
             x = getattr(self, 'UpBlock1_' + str(i+1))(x, gamma, beta)
         out = self.UpBlock2(x)
 
-        return out, heatmap, content_feature
+        return out, c_cam_logit, heatmap, content_feature
 
 
 class ResnetBlock(nn.Module):
@@ -326,31 +341,38 @@ class Discriminator(nn.Module):
         model = [nn.ReflectionPad2d(1),
                  nn.utils.spectral_norm(
                  nn.Conv2d(input_nc, ndf, kernel_size=4, stride=2, padding=0, bias=True)),
-                 nn.LeakyReLU(0.2, True)]
+                 nn.Mish()]
 
         for i in range(1, n_layers - 2):
             mult = 2 ** (i - 1)
             model += [nn.ReflectionPad2d(1),
                       nn.utils.spectral_norm(
                       nn.Conv2d(ndf * mult, ndf * mult * 2, kernel_size=4, stride=2, padding=0, bias=True)),
-                      nn.LeakyReLU(0.2, True)]
+                      nn.Mish()]
 
         mult = 2 ** (n_layers - 2 - 1)
         model += [nn.ReflectionPad2d(1),
                   nn.utils.spectral_norm(
                   nn.Conv2d(ndf * mult, ndf * mult * 2, kernel_size=4, stride=1, padding=0, bias=True)),
-                  nn.LeakyReLU(0.2, True)]
+                  nn.Mish()]
 
         # Class Activation Map
         mult = 2 ** (n_layers - 2)
         # Self Attention
         self.self_att = Self_Attn(ndf * mult, 'relu')
 
+        # conv CAM
+        self.g_conv = nn.Conv2d(ndf * mult, ndf * mult, kernel_size=3, stride=1, padding=1, groups=ndf * mult, bias=False)
+        # self.g_conv_down = nn.Conv2d(ndf * mult, ndf * mult, kernel_size=3, stride=2, padding=1, groups=ndf * mult, bias=False)
+        self.conv_CAM_var = nn.Parameter(torch.tensor(0.5))
+
         self.gap_fc = nn.utils.spectral_norm(nn.Linear(ndf * mult, 1, bias=False))
         self.gmp_fc = nn.utils.spectral_norm(nn.Linear(ndf * mult, 1, bias=False))
         # self.conv1x1 = nn.Conv2d(ndf * mult * 2, ndf * mult, kernel_size=1, stride=1, bias=True)
-        self.conv1x1 = nn.Conv2d(ndf * mult * 3, ndf * mult, kernel_size=1, stride=1, bias=True)
+        self.conv1x1 = nn.Conv2d(ndf * mult, ndf * mult, kernel_size=1, stride=1, bias=True)
+        self.conv1x1_logit = nn.Conv2d(ndf * mult, 1, kernel_size=1, stride=1, bias=True)
         self.leaky_relu = nn.LeakyReLU(0.2, True)
+        self.mish = nn.Mish()
 
         self.pad = nn.ReflectionPad2d(1)
         self.conv = nn.utils.spectral_norm(
@@ -361,6 +383,7 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         x = self.model(input)
+        content_feature = x
 
         # gap = torch.nn.functional.adaptive_avg_pool2d(x, 1)
         # gap_logit = self.gap_fc(gap.view(x.shape[0], -1))
@@ -376,15 +399,21 @@ class Discriminator(nn.Module):
         # x = torch.cat([gap, gmp], 1)
         # x = self.leaky_relu(self.conv1x1(x))
 
-        x = self.self_att(x)
-        # x = self.leaky_relu(self.conv1x1(x))
+        self_att_map = self.self_att(x)
+        #g_conv_down = self.g_conv_down(self_att_map)
+        g_conv = self.mish(self.g_conv(self_att_map))
+        c_cam_logit = self.conv1x1_logit(g_conv)
+        
+        # x = self.relu(self.conv1x1(x))
+        x = self.mish(self.conv1x1(g_conv))
+        x = (x * (1.0 - self.conv_CAM_var)) + (self.conv_CAM_var * content_feature)
 
-        heatmap = torch.sum(x, dim=1, keepdim=True)
+        heatmap = torch.sum(g_conv, dim=1, keepdim=True)
 
         x = self.pad(x)
         out = self.conv(x)
 
-        return out, heatmap
+        return out, c_cam_logit, heatmap
 
 
 class RhoClipper(object):
@@ -392,6 +421,8 @@ class RhoClipper(object):
     def __init__(self, min, max):
         self.clip_min = min
         self.clip_max = max
+        self.c_clip_min = 0.1
+        self.c_clip_max = 0.9
         assert min < max
 
     def __call__(self, module):
@@ -400,3 +431,8 @@ class RhoClipper(object):
             w = module.rho.data
             w = w.clamp(self.clip_min, self.clip_max)
             module.rho.data = w
+
+        elif hasattr(module, 'conv_CAM_var'):
+            w = module.conv_CAM_var.data
+            w = w.clamp(self.c_clip_min, self.c_clip_max)
+            module.conv_CAM_var.data = w
