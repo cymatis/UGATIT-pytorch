@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.nn.parameter import Parameter
-from torch.nn.utils.spectral_norm import spectral_norm
 
 
 class ResnetGenerator(nn.Module):
@@ -36,38 +35,22 @@ class ResnetGenerator(nn.Module):
             DownBlock += [ResnetBlock(ngf * mult, use_bias=False)]
 
         # Class Activation Map
-        # self.gap_fc = nn.Linear(ngf * mult, 1, bias=False)
-        # self.gmp_fc = nn.Linear(ngf * mult, 1, bias=False)
-        # self.conv1x1 = nn.Conv2d(ngf * mult * 2, ngf * mult, kernel_size=1, stride=1, bias=True)
-        # self.relu = nn.ReLU(True)
-
-        # Self Attention
-        # self.self_att = Self_Attn(ngf * mult, 'relu')
-        # self.conv1x1 = nn.Conv2d(ngf * mult * 3, ngf * mult, kernel_size=1, stride=1, bias=True) # for multi-scale
-        # self.relu = nn.ReLU(True)
-
-        self.self_att = Self_Attn(ngf * mult, 'relu')
-        self.conv1x1 = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=1, stride=1, bias=True)
+        self.gap_fc = nn.Linear(ngf * mult, 1, bias=False)
+        self.gmp_fc = nn.Linear(ngf * mult, 1, bias=False)
+        self.conv1x1 = nn.Conv2d(ngf * mult * 2, ngf * mult, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(True)
-        # self.mish = nn.Mish()
 
-        # Conv CAM
-        # self.g_conv_down = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=2, padding=1, groups=ngf * mult, bias=False)
-        self.g_conv = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=1, padding=1, groups=ngf * mult, bias=False)
-        self.conv1x1_logit = nn.Conv2d(ngf * mult, 1, kernel_size=1, stride=1, bias=True)
-        self.conv_CAM_var = nn.Parameter(torch.tensor(0.5))
-        
         # Gamma, Beta block
         if self.light:
             FC = [nn.Linear(ngf * mult, ngf * mult, bias=False),
-                  nn.Mish(),
+                  nn.ReLU(True),
                   nn.Linear(ngf * mult, ngf * mult, bias=False),
-                  nn.Mish()]
+                  nn.ReLU(True)]
         else:
             FC = [nn.Linear(img_size // mult * img_size // mult * ngf * mult, ngf * mult, bias=False),
-                  nn.Mish(),
+                  nn.ReLU(True),
                   nn.Linear(ngf * mult, ngf * mult, bias=False),
-                  nn.Mish()]
+                  nn.ReLU(True)]
         self.gamma = nn.Linear(ngf * mult, ngf * mult, bias=False)
         self.beta = nn.Linear(ngf * mult, ngf * mult, bias=False)
 
@@ -93,9 +76,20 @@ class ResnetGenerator(nn.Module):
         self.FC = nn.Sequential(*FC)
         self.UpBlock2 = nn.Sequential(*UpBlock2)
 
+        # add
+        self.self_att = Self_Attn(ngf * mult, 'relu')
+        self.conv1x1 = nn.Conv2d(ngf * mult, ngf * mult, kernel_size=1, stride=1, bias=True)
+        self.mish = nn.Mish()
+
+        self.g_conv_3 = nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=1, padding=1, groups=ngf * mult, bias=False)
+        self.g_conv_2 = nn.Conv2d(ngf * mult * 2, ngf * mult * 4, kernel_size=3, stride=1, padding=1, groups=ngf * mult, bias=False)
+        self.g_conv_1 = nn.Conv2d(ngf * mult * 4, ngf * mult, kernel_size=3, stride=1, padding=1, groups=ngf * mult, bias=False)
+        self.conv1x1_logit = nn.Conv2d(ngf * mult, 1, kernel_size=1, stride=1, bias=True)
+        self.conv_CAM_var = nn.Parameter(torch.tensor(0.5))
+
     def forward(self, input):
         x = self.DownBlock(input)
-
+        
         content_feature = x
 
         # gap = torch.nn.functional.adaptive_avg_pool2d(x, 1)
@@ -107,22 +101,17 @@ class ResnetGenerator(nn.Module):
         # gmp_logit = self.gmp_fc(gmp.view(x.shape[0], -1))
         # gmp_weight = list(self.gmp_fc.parameters())[0]
         # gmp = x * gmp_weight.unsqueeze(2).unsqueeze(3)
-
-        # cam_logit = torch.cat([gap_logit, gmp_logit], 1)
-        # x = torch.cat([gap, gmp], 1)
-        # x = self.relu(self.conv1x1(x))
-
+        
         self_att_map = self.self_att(x)
-        # g_conv_down = self.g_conv_down(self_att_map)
-        g_conv = self.relu(self.g_conv(self_att_map))
-        c_cam_logit = self.conv1x1_logit(g_conv)
-
-        # x = self.g_conv_cpy(x)
-        # x = self.relu(self.conv1x1(g_conv))
-        x = self.relu(self.conv1x1(g_conv))
+        g_conv_3 = self.mish(self.g_conv_3(self_att_map))
+        g_conv_2 = self.mish(self.g_conv_2(g_conv_3))
+        g_conv_1 = self.mish(self.g_conv_1(g_conv_2))
+        cam_logit = self.conv1x1_logit(g_conv_1)
+        
+        x = self.relu(self.conv1x1(g_conv_1))
         x = (x * (1.0 - self.conv_CAM_var)) + (self.conv_CAM_var * content_feature)
 
-        heatmap = torch.sum(g_conv, dim=1, keepdim=True)
+        heatmap = torch.sum(g_conv_1, dim=1, keepdim=True)
 
         if self.light:
             x_ = torch.nn.functional.adaptive_avg_pool2d(x, 1)
@@ -136,7 +125,7 @@ class ResnetGenerator(nn.Module):
             x = getattr(self, 'UpBlock1_' + str(i+1))(x, gamma, beta)
         out = self.UpBlock2(x)
 
-        return out, c_cam_logit, heatmap, content_feature
+        return out, cam_logit, heatmap, content_feature
 
 
 class ResnetBlock(nn.Module):
@@ -158,118 +147,6 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)
         return out
 
-class Self_Attn(nn.Module):
-    """ Self attention Layer"""
-    def __init__(self,in_dim,activation):
-        super(Self_Attn,self).__init__()
-        self.chanel_in = in_dim
-        self.activation = activation
-        
-        self.query_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1, stride=1, padding=0))
-        self.key_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1,  stride=1, padding=0))
-        self.value_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1,  stride=1, padding=0))
-        self.gamma = nn.Parameter(torch.zeros(1))
-
-        self.softmax  = nn.Softmax(dim=-1) #
-    def forward(self,x):
-        """
-            inputs :
-                x : input feature maps( B X C X W X H)
-            returns :
-                out : self attention value + input feature 
-                attention: B X N X N (N is Width*Height)
-        """
-        m_batchsize,C,width ,height = x.size()
-        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N) fx
-        proj_key =  self.key_conv(x).view(m_batchsize,-1,width*height) # B X C x (*W*H) gx
-
-        energy =  torch.bmm(proj_query,proj_key) # transpose check 
-
-        attention = self.softmax(energy) # BX (N) X (N) 
-        proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N hx
-
-        out = torch.bmm(proj_value,attention.permute(0,2,1) )
-        out = out.view(m_batchsize,C,width,height)
-        
-        out = self.gamma * out + x
-        return out
-
-class Multi_Self_Attn(nn.Module):
-    """ Self attention Layer"""
-    def __init__(self,in_dim,activation):
-        super(Multi_Self_Attn,self).__init__()
-        self.chanel_in = in_dim
-        self.activation = activation
-        
-        self.query_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1, stride=1, padding=0))
-        self.key_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1,  stride=1, padding=0))
-        self.value_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1,  stride=1, padding=0))
-        self.gamma = nn.Parameter(torch.zeros(1))
-
-        self.query_conv_3 = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 3, stride=1, padding=1))
-        self.key_conv_3 = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 3,  stride=1, padding=1))
-        self.value_conv_3 = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 3,  stride=1, padding=1))
-        self.gamma_3 = nn.Parameter(torch.zeros(1))
-
-        self.query_conv_7 = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 5, stride=1, padding=2))
-        self.key_conv_7 = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 5,  stride=1, padding=2))
-        self.value_conv_7 = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 5,  stride=1, padding=2))
-        self.gamma_7 = nn.Parameter(torch.zeros(1))
-
-        self.softmax  = nn.Softmax(dim=-1) #
-    def forward(self,x):
-        """
-            inputs :
-                x : input feature maps( B X C X W X H)
-            returns :
-                out : self attention value + input feature 
-                attention: B X N X N (N is Width*Height)
-        """
-        m_batchsize,C,width ,height = x.size()
-        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N) fx
-        proj_key =  self.key_conv(x).view(m_batchsize,-1,width*height) # B X C x (*W*H) gx
-
-        energy =  torch.bmm(proj_query,proj_key) # transpose check 
-
-        attention = self.softmax(energy) # BX (N) X (N) 
-        proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N hx
-
-        out = torch.bmm(proj_value,attention.permute(0,2,1) )
-        out = out.view(m_batchsize,C,width,height)
-        
-        out = self.gamma * out + x
-
-        # 3x3
-        proj_query_3  = self.query_conv_3(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N) fx
-        proj_key_3 =  self.key_conv_3(x).view(m_batchsize,-1,width*height) # B X C x (*W*H) gx
-
-        energy_3 =  torch.bmm(proj_query_3,proj_key_3) # transpose check 
-
-        attention_3 = self.softmax(energy_3) # BX (N) X (N) 
-        proj_value_3 = self.value_conv_3(x).view(m_batchsize,-1,width*height) # B X C X N hx
-
-        out_3 = torch.bmm(proj_value_3,attention_3.permute(0,2,1) )
-        out_3 = out_3.view(m_batchsize,C,width,height)
-        
-        out_3 = self.gamma_3 * out_3 + x
-
-        # 5x5
-        proj_query_7  = self.query_conv_7(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N) fx
-        proj_key_7 =  self.key_conv_7(x).view(m_batchsize,-1,width*height) # B X C x (*W*H) gx
-
-        energy_7 =  torch.bmm(proj_query_7,proj_key_7) # transpose check 
-
-        attention_7 = self.softmax(energy_7) # BX (N) X (N) 
-        proj_value_7 = self.value_conv_7(x).view(m_batchsize,-1,width*height) # B X C X N hx
-
-        out_7 = torch.bmm(proj_value_7,attention_7.permute(0,2,1) )
-        out_7 = out_7.view(m_batchsize,C,width,height)
-        
-        out_7 = self.gamma * out_7 + x
-
-        cat_out = torch.cat([out, out_3, out_7], 1)
-
-        return cat_out
 
 class ResnetAdaILNBlock(nn.Module):
     def __init__(self, dim, use_bias):
@@ -341,48 +218,47 @@ class Discriminator(nn.Module):
         model = [nn.ReflectionPad2d(1),
                  nn.utils.spectral_norm(
                  nn.Conv2d(input_nc, ndf, kernel_size=4, stride=2, padding=0, bias=True)),
-                 nn.Mish()]
+                 nn.LeakyReLU(0.2, True)]
 
         for i in range(1, n_layers - 2):
             mult = 2 ** (i - 1)
             model += [nn.ReflectionPad2d(1),
                       nn.utils.spectral_norm(
                       nn.Conv2d(ndf * mult, ndf * mult * 2, kernel_size=4, stride=2, padding=0, bias=True)),
-                      nn.Mish()]
+                      nn.LeakyReLU(0.2, True)]
 
         mult = 2 ** (n_layers - 2 - 1)
         model += [nn.ReflectionPad2d(1),
                   nn.utils.spectral_norm(
                   nn.Conv2d(ndf * mult, ndf * mult * 2, kernel_size=4, stride=1, padding=0, bias=True)),
-                  nn.Mish()]
+                  nn.LeakyReLU(0.2, True)]
 
         # Class Activation Map
         mult = 2 ** (n_layers - 2)
-        # Self Attention
-        self.self_att = Self_Attn(ndf * mult, 'relu')
-
-        # conv CAM
-        self.g_conv = nn.Conv2d(ndf * mult, ndf * mult, kernel_size=3, stride=1, padding=1, groups=ndf * mult, bias=False)
-        # self.g_conv_down = nn.Conv2d(ndf * mult, ndf * mult, kernel_size=3, stride=2, padding=1, groups=ndf * mult, bias=False)
-        self.conv_CAM_var = nn.Parameter(torch.tensor(0.5))
-
         self.gap_fc = nn.utils.spectral_norm(nn.Linear(ndf * mult, 1, bias=False))
         self.gmp_fc = nn.utils.spectral_norm(nn.Linear(ndf * mult, 1, bias=False))
-        # self.conv1x1 = nn.Conv2d(ndf * mult * 2, ndf * mult, kernel_size=1, stride=1, bias=True)
-        self.conv1x1 = nn.Conv2d(ndf * mult, ndf * mult, kernel_size=1, stride=1, bias=True)
-        self.conv1x1_logit = nn.Conv2d(ndf * mult, 1, kernel_size=1, stride=1, bias=True)
+        self.conv1x1 = nn.Conv2d(ndf * mult * 2, ndf * mult, kernel_size=1, stride=1, bias=True)
         self.leaky_relu = nn.LeakyReLU(0.2, True)
-        self.mish = nn.Mish()
 
         self.pad = nn.ReflectionPad2d(1)
         self.conv = nn.utils.spectral_norm(
             nn.Conv2d(ndf * mult, 1, kernel_size=4, stride=1, padding=0, bias=False))
 
         self.model = nn.Sequential(*model)
-        
+
+        # add
+        self.conv1x1_logit = nn.Conv2d(ndf * mult, 1, kernel_size=1, stride=1, bias=True)
+        self.mish = nn.Mish()
+
+        self.self_att = Self_Attn(ndf * mult, 'relu')
+        self.g_conv_3 = nn.Conv2d(ndf * mult, ndf * mult * 2, kernel_size=3, stride=1, padding=1, groups=ndf * mult, bias=False)
+        self.g_conv_2 = nn.Conv2d(ndf * mult * 2, ndf * mult * 4, kernel_size=3, stride=1, padding=1, groups=ndf * mult, bias=False)
+        self.g_conv_1 = nn.Conv2d(ndf * mult * 4, ndf * mult, kernel_size=3, stride=1, padding=1, groups=ndf * mult, bias=False)
+        self.conv_CAM_var = nn.Parameter(torch.tensor(0.5))
 
     def forward(self, input):
         x = self.model(input)
+
         content_feature = x
 
         # gap = torch.nn.functional.adaptive_avg_pool2d(x, 1)
@@ -395,25 +271,21 @@ class Discriminator(nn.Module):
         # gmp_weight = list(self.gmp_fc.parameters())[0]
         # gmp = x * gmp_weight.unsqueeze(2).unsqueeze(3)
 
-        # cam_logit = torch.cat([gap_logit, gmp_logit], 1)
-        # x = torch.cat([gap, gmp], 1)
-        # x = self.leaky_relu(self.conv1x1(x))
-
         self_att_map = self.self_att(x)
-        #g_conv_down = self.g_conv_down(self_att_map)
-        g_conv = self.mish(self.g_conv(self_att_map))
-        c_cam_logit = self.conv1x1_logit(g_conv)
-        
-        # x = self.relu(self.conv1x1(x))
-        x = self.mish(self.conv1x1(g_conv))
+        g_conv_3 = self.mish(self.g_conv_3(self_att_map))
+        g_conv_2 = self.mish(self.g_conv_2(g_conv_3))
+        g_conv_1 = self.mish(self.g_conv_1(g_conv_2))
+        cam_logit = self.conv1x1_logit(g_conv_1)
+
+        x = self.mish(self.conv1x1(g_conv_1))
         x = (x * (1.0 - self.conv_CAM_var)) + (self.conv_CAM_var * content_feature)
 
-        heatmap = torch.sum(g_conv, dim=1, keepdim=True)
+        heatmap = torch.sum(g_conv_1, dim=1, keepdim=True)
 
         x = self.pad(x)
         out = self.conv(x)
 
-        return out, c_cam_logit, heatmap
+        return out, cam_logit, heatmap
 
 
 class RhoClipper(object):
@@ -436,3 +308,39 @@ class RhoClipper(object):
             w = module.conv_CAM_var.data
             w = w.clamp(self.c_clip_min, self.c_clip_max)
             module.conv_CAM_var.data = w
+            
+class Self_Attn(nn.Module):
+    """ Self attention Layer"""
+    def __init__(self,in_dim,activation):
+        super(Self_Attn,self).__init__()
+        self.chanel_in = in_dim
+        self.activation = activation
+        
+        self.query_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1, stride=1, padding=0))
+        self.key_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1,  stride=1, padding=0))
+        self.value_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1,  stride=1, padding=0))
+        self.gamma = nn.Parameter(torch.zeros(1))
+
+        self.softmax  = nn.Softmax(dim=-1) #
+    def forward(self,x):
+        """
+            inputs :
+                x : input feature maps( B X C X W X H)
+            returns :
+                out : self attention value + input feature 
+                attention: B X N X N (N is Width*Height)
+        """
+        m_batchsize,C,width ,height = x.size()
+        proj_query  = self.query_conv(x).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N) fx
+        proj_key =  self.key_conv(x).view(m_batchsize,-1,width*height) # B X C x (*W*H) gx
+
+        energy =  torch.bmm(proj_query,proj_key) # transpose check 
+
+        attention = self.softmax(energy) # BX (N) X (N) 
+        proj_value = self.value_conv(x).view(m_batchsize,-1,width*height) # B X C X N hx
+
+        out = torch.bmm(proj_value,attention.permute(0,2,1) )
+        out = out.view(m_batchsize,C,width,height)
+        
+        out = self.gamma * out + x
+        return out
