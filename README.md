@@ -11,15 +11,16 @@ For instructions, please follow one of the original author's implementation belo
 ### [Paper](https://arxiv.org/abs/1907.10830) | [Official Tensorflow code](https://github.com/taki0112/UGATIT) | [Official Pytorch code](https://github.com/znxlwm/UGATIT-pytorch) 
 
 ## CartoonGAN
-### [Paper](https://ieeexplore.ieee.org/document/8579084)
+### [Paper](https://ieeexplore.ieee.org/document/8579084)    
 
 ## Self-Attention GAN
-
+### [Official code](https://github.com/heykeetae/Self-Attention-GAN)    
 
 ## To Do
 - [x] Add Content Loss
 - [x] Add Self-Attention
 - [x] Add Multi-scale Self-Attentions
+- [x] Split model to each GPUs (2GPUs)
 
 ## Requirements
 * python == 3.8
