@@ -1,5 +1,6 @@
 ## UGATIT with 2 GPUs
 
+> Example Plot of A2B Translation Process
 ![UGATIT_GPU](https://user-images.githubusercontent.com/63994269/130188522-ea77b1e8-5fdf-49f1-bdc6-37912403aff1.png)
 
 This repo explicitly uses GPU:0 and GPU:1.
