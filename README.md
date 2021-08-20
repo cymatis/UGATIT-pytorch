@@ -21,6 +21,8 @@ For instructions, please follow one of the original author's implementation belo
 - [x] Add Self-Attention
 - [x] Add Multi-scale Self-Attentions
 - [x] Split model to each GPUs (2GPUs)
+- [ ] Result plots
+- [ ] Clean up the codes
 
 ## Requirements
 * python == 3.8
