@@ -29,7 +29,7 @@ For instructions, please follow one of the original author's implementation belo
 
 ## Hardwares
 * GPU : NVIDIA RTX 3090 x 2
-* GPU : NVIDIA A100 x 1
+* GPU : ~~NVIDIA A100 x 1~~
 
 ## Dataset
 * [selfie2anime dataset](https://drive.google.com/file/d/1xOWj1UVgp6NKMT3HbPhBbtq2A4EDkghF/view?usp=sharing)
