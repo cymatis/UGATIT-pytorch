@@ -1,9 +1,4 @@
-## U-GAT-IT &mdash; Official PyTorch Implementation
-### : Unsupervised Generative Attentional Networks with Adaptive Layer-Instance Normalization for Image-to-Image Translation
-
-<div align="center">
-  <img src="./assets/teaser.png">
-</div>
+## U-GAT-IT &mdash; for 2 GPUs
 
 ### [Paper](https://arxiv.org/abs/1907.10830) | [Official Tensorflow code](https://github.com/taki0112/UGATIT)
 The results of the paper came from the **Tensorflow code**
