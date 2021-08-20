@@ -3,11 +3,68 @@
 > Example Plot of A2B Translation Process
 ![UGATIT_GPU](https://user-images.githubusercontent.com/63994269/130188522-ea77b1e8-5fdf-49f1-bdc6-37912403aff1.png)
 
-This repo explicitly uses GPU:0 and GPU:1.   
-To use this repo, please follow one of the original author's implementation below.
+This repo explicitly uses GPU:0 and GPU:1.    
+This repo is based on the below official implementations and papers.    
+For instructions, please follow one of the original author's implementation below.
 
+## UGATIT
 ### [Paper](https://arxiv.org/abs/1907.10830) | [Official Tensorflow code](https://github.com/taki0112/UGATIT) | [Official Pytorch code](https://github.com/znxlwm/UGATIT-pytorch) 
 
-> **U-GAT-IT: Unsupervised Generative Attentional Networks with Adaptive Layer-Instance Normalization for Image-to-Image Translation**<br>
->
-> **Abstract** *We propose a novel method for unsupervised image-to-image translation, which incorporates a new attention module and a new learnable normalization function in an end-to-end manner. The attention module guides our model to focus on more important regions distinguishing between source and target domains based on the attention map obtained by the auxiliary classifier. Unlike previous attention-based methods which cannot handle the geometric changes between domains, our model can translate both images requiring holistic changes and images requiring large shape changes. Moreover, our new AdaLIN (Adaptive Layer-Instance Normalization) function helps our attention-guided model to flexibly control the amount of change in shape and texture by learned parameters depending on datasets. Experimental results show the superiority of the proposed method compared to the existing state-of-the-art models with a fixed network architecture and hyper-parameters.*
+## CartoonGAN
+### [Paper](https://ieeexplore.ieee.org/document/8579084)
+
+## Self-Attention GAN
+
+
+## To Do
+- [x] Add Content Loss
+- [x] Add Self-Attention
+- [x] Add Multi-scale Self-Attentions
+
+## Requirements
+* python == 3.8
+* pytorch == 1.19.0
+* opencv-python == 4.4.0.42
+
+## Hardwares
+* GPU : NVIDIA RTX 3090 x 2
+* GPU : NVIDIA A100 x 1
+
+## Dataset
+* [selfie2anime dataset](https://drive.google.com/file/d/1xOWj1UVgp6NKMT3HbPhBbtq2A4EDkghF/view?usp=sharing)
+
+## Usage
+```
+├── dataset
+   └── YOUR_DATASET_NAME
+       ├── trainA
+           ├── xxx.jpg (name, format doesn't matter)
+           ├── yyy.png
+           └── ...
+       ├── trainB
+           ├── zzz.jpg
+           ├── www.png
+           └── ...
+       ├── testA
+           ├── aaa.jpg 
+           ├── bbb.png
+           └── ...
+       └── testB
+           ├── ccc.jpg 
+           ├── ddd.png
+           └── ...
+```
+
+### Train
+```
+> python main.py --dataset selfie2anime --content_weight 10 --light False
+```
+  * Original implementations and results from paper used `--light` to **False**
+
+### Test
+```
+> python main.py --dataset selfie2anime --phase test --light False
+```
+
+## Results
+
