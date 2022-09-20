@@ -5,6 +5,8 @@
 
 This repo explicitly uses GPU:0 and GPU:1.  
 If there is no availiable GPUs more than 2, process will be shutdown.  
+Each translation process needs more than 20GB GPU memory for full size model.
+
 This repo is based on the below official implementations and papers.    
 For training and testing, please follow one of the original author's implementation below.   
 
