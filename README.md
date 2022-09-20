@@ -16,22 +16,13 @@ For instructions, please follow one of the original author's implementation belo
 ## Self-Attention GAN
 ### [Official code](https://github.com/heykeetae/Self-Attention-GAN)    
 
-## To Do
-- [x] Add Content Loss
-- [x] Add Self-Attention
-- [x] Add Multi-scale Self-Attentions
-- [x] Split model to each GPUs (2GPUs)
-- [ ] Result plots
-- [ ] Clean up the codes
-
 ## Requirements
 * python == 3.8
-* pytorch == 1.19.0
+* pytorch 1.19.0 or higher with CUDA 11.3
 * opencv-python == 4.4.0.42
 
 ## Hardwares
 * GPU : NVIDIA RTX 3090 x 2
-* GPU : ~~NVIDIA A100 x 1~~
 
 ## Dataset
 * [selfie2anime dataset](https://drive.google.com/file/d/1xOWj1UVgp6NKMT3HbPhBbtq2A4EDkghF/view?usp=sharing)
@@ -62,7 +53,7 @@ For instructions, please follow one of the original author's implementation belo
 ```
 > python main.py --dataset selfie2anime --content_weight 10 --light False
 ```
-  * Original implementations and results from paper used `--light` to **False**
+  * Original implementations and results from paper used '--light False'.
 
 ### Test
 ```
