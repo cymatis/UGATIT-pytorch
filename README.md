@@ -51,13 +51,13 @@ For instructions, please follow one of the original author's implementation belo
 
 ### Train
 ```
-> python main.py --dataset selfie2anime --content_weight 10 --light False
+> python main.py --dataset selfie2anime --light False
 ```
   * Original implementations and results from paper used '--light False'.
 
 ### Test
 ```
-> python main.py --dataset selfie2anime --phase test --light False
+> python main.py --dataset selfie2anime --light False
 ```
 
 ## Results
