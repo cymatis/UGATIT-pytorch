@@ -3,9 +3,10 @@
 > Example Plot of A2B Translation Process
 ![UGATIT_GPU](https://user-images.githubusercontent.com/63994269/130188522-ea77b1e8-5fdf-49f1-bdc6-37912403aff1.png)
 
-This repo explicitly uses GPU:0 and GPU:1.    
+This repo explicitly uses GPU:0 and GPU:1.  
+If there is no availiable GPUs more than 2, process will be shutdown.  
 This repo is based on the below official implementations and papers.    
-For instructions, please follow one of the original author's implementation below.
+For training and testing, please follow one of the original author's implementation below.   
 
 ## UGATIT
 ### [Paper](https://arxiv.org/abs/1907.10830) | [Official Tensorflow code](https://github.com/taki0112/UGATIT) | [Official Pytorch code](https://github.com/znxlwm/UGATIT-pytorch) 
