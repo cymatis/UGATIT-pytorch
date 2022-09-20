@@ -19,6 +19,14 @@ For training and testing, please follow one of the original author's implementat
 ## Self-Attention GAN
 ### [Official code](https://github.com/heykeetae/Self-Attention-GAN)    
 
+## To Do
+- [x] Add Content Loss
+- [x] Add Self-Attention
+- [x] Add Multi-scale Self-Attentions
+- [x] Split model to each GPUs (2GPUs)
+- [ ] Result plots
+- [ ] Clean up the codes
+
 ## Requirements
 * python == 3.8
 * pytorch 1.19.0 or higher with CUDA 11.3
